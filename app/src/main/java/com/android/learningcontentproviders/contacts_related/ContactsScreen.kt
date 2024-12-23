@@ -1,6 +1,7 @@
 package com.android.learningcontentproviders.contacts_related
 
 import android.Manifest
+import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.launch
@@ -18,11 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,6 +39,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import coil3.compose.AsyncImage
 import com.android.learningcontentproviders.common.startsWithAlphabet
 import kotlin.let
@@ -43,10 +51,12 @@ import kotlin.text.isNullOrEmpty
 import kotlin.text.isUpperCase
 import kotlin.toString
 
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactsScreen(
+    navHostController: NavHostController,
     contactsViewModel: ContactsViewModel,
-    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
 
@@ -54,7 +64,7 @@ fun ContactsScreen(
         contract = ActivityResultContracts.PickContact(),
         onResult = { contactUri ->
             contactUri?.let {
-                contactsViewModel.getContactsList(context)
+                contactsViewModel.getContactsList(context.contentResolver)
 
                 // if You want to get the Details of selected Contact:
 
@@ -79,95 +89,123 @@ fun ContactsScreen(
         contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
     }
 
-    val contactsList by contactsViewModel.contactsList.collectAsState()
+    val contactsList by contactsViewModel.contactsList.collectAsStateWithLifecycle()
 
-    LazyColumn(
-        modifier = modifier
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Contacts") },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        navHostController.navigateUp()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Icon for Navigate Back"
+                        )
+                    }
+                }
+            )
+        },
+        modifier = Modifier
+            .fillMaxSize()
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues = innerPadding)
+        ) {
+            items(contactsList.size) { index ->
+                val item = contactsList[index]
+
+                ContactsListItem(item = item)
+            }
+        }
+    }
+
+
+}
+
+@Composable
+fun ContactsListItem(
+    item: ContactsModel
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(all = 20.dp)
+            .clickable(
+                enabled = true
+            ) {
+
+            }
     ) {
-        items(contactsList.size) { index ->
-            val item = contactsList[index]
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+        ) {
 
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.Transparent
+                    containerColor = if (item.photoUrl.isNullOrEmpty()) {
+                        if (isSystemInDarkTheme()) Color.DarkGray else Color.LightGray
+                    } else Color.Transparent
                 ),
+                shape = CircleShape,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(all = 20.dp)
-                    .clickable(
-                        enabled = true
-                    ) {
-
-                    }
+                    .width(50.dp)
+                    .height(50.dp)
+                    .clip(CircleShape)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
 
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (item.photoUrl.isNullOrEmpty()) {
-                                if (isSystemInDarkTheme()) Color.DarkGray else Color.LightGray
-                            } else Color.Transparent
-                        ),
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .width(50.dp)
-                            .height(50.dp)
-                            .clip(CircleShape)
-                    ) {
+                    val name = item.name ?: ""
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-
-                            val name = item.name ?: ""
-
-                            if (item.photoUrl.isNullOrEmpty()) {
-                                if (name.startsWithAlphabet()) {
-                                    Text(
-                                        text = (item.name).toString().first().toString(),
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = Color.White
-                                    )
-                                }
-                            } else {
-                                AsyncImage(
-                                    model = item.photoUrl,
-                                    contentDescription = "Contact's Image",
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(CircleShape)
-                                )
-                            }
+                    if (item.photoUrl.isNullOrEmpty()) {
+                        if (name.startsWithAlphabet()) {
+                            Text(
+                                text = (item.name).toString().first().toString(),
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
                         }
-                    }
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text = "${item.name}",
-                        )
-
-                        Text(
-                            text = "${item.number}",
+                    } else {
+                        AsyncImage(
+                            model = item.photoUrl,
+                            contentDescription = "Contact's Image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
                         )
                     }
                 }
             }
 
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = "${item.name}",
+                )
+
+                Text(
+                    text = "${item.number}",
+                )
+            }
         }
     }
-
-
 }

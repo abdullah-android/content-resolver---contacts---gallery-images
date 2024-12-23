@@ -1,6 +1,7 @@
 package com.android.learningcontentproviders.contacts_related
 
 import android.annotation.SuppressLint
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
@@ -13,16 +14,15 @@ import kotlin.io.use
 
 class ContactsViewModel : ViewModel() {
 
-    private val _contactsList = MutableStateFlow<List<ContactModel>>(emptyList())
+    private val _contactsList = MutableStateFlow<List<ContactsModel>>(emptyList())
     val contactsList = _contactsList.asStateFlow()
 
 
-    @SuppressLint("Recycle", "Range")
-    fun getContactsList(context: Context) {
+    fun getContactsList(contentResolver: ContentResolver) {
 
         try {
 
-            var thisContactsList = mutableStateListOf<ContactModel>()
+            var thisContactsList = mutableStateListOf<ContactsModel>()
 
             val order = "${ContactsContract.Contacts.DISPLAY_NAME} DESC"
 
@@ -40,7 +40,7 @@ class ContactsViewModel : ViewModel() {
             // val selection = "${ContactsContract.Contacts._ID} LIKE (?, ?)"
             // val selectionAgs = arrayOf(1, 2) // where the contact id 1 or 2 it will get that
 
-            context.contentResolver.query(
+            contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 projection,
                 selection,
@@ -69,7 +69,7 @@ class ContactsViewModel : ViewModel() {
                             val photoUri = cursor.getString(columnPhotoUri) ?: ""
                             val number = cursor.getString(columnNumber) ?: ""
 
-                            val contact = ContactModel(
+                            val contact = ContactsModel(
                                 name = name,
                                 number = number,
                                 photoUrl = photoUri
@@ -87,75 +87,19 @@ class ContactsViewModel : ViewModel() {
 
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 
-
-    fun getContactByContactUri(contactUri: Uri, context: Context) {
-        try {
-
-            context.contentResolver
-                .query(
-                    contactUri,
-                    arrayOf(
-                        ContactsContract.Contacts.HAS_PHONE_NUMBER,
-                        ContactsContract.Contacts._ID,
-                    ),
-                    null,
-                    null,
-                    null
-                )
-                .use { cursor ->
-                    if (cursor?.moveToNext()!!) {
-
-                        when (cursor.count) {
-                            0 -> {}
-
-                            else -> {
-
-                                val columnHasNumber =
-                                    cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
-
-                                val columnId = cursor.getColumnIndex(ContactsContract.Contacts._ID)
-
-                                if (cursor.moveToFirst()) {
-
-                                    val hasNumber = cursor.getInt(columnHasNumber)
-                                    val contactId = cursor.getString(columnId)
-
-                                    if (hasNumber > 0) {
-
-                                        getContactById(
-                                            contactId = contactId,
-                                            context = context
-                                        )
-
-                                    }
-                                }
-                            }
-
-                        }
-                    } else {
-                        Toast.makeText(context, "unable to Move to Next", Toast.LENGTH_SHORT).show()
-                    }
-                }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "${e.localizedMessage}", Toast.LENGTH_SHORT).show()
-            println("Error: ${e.localizedMessage}")
-        }
-    }
 
     fun getContactById(
         contactId: String,
-        context: Context
+        contentResolver: ContentResolver
     ) {
         try {
 
-            val thisContactsList = mutableStateListOf<ContactModel>()
+            val thisContactsList = mutableStateListOf<ContactsModel>()
 
-            val phoneCursor = context.contentResolver.query(
+            val phoneCursor = contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 arrayOf(
                     ContactsContract.CommonDataKinds.Phone.NUMBER,
@@ -198,7 +142,7 @@ class ContactsViewModel : ViewModel() {
                             val number =
                                 phoneCursor.getString(columnNumber) ?: "Failed to get number or he don't have"
 
-                            val contact = ContactModel(
+                            val contact = ContactsModel(
                                 name = name,
                                 number = number,
                                 photoUrl = photoUrl
@@ -208,29 +152,80 @@ class ContactsViewModel : ViewModel() {
                         }
                         _contactsList.value = thisContactsList
                     } else {
-                        Toast.makeText(
-                            context,
-                            "unable to Move to Next in Phone Cursor",
-                            Toast.LENGTH_SHORT
-                        ).show()
+
                     }
                 }
 
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, "${e.localizedMessage}", Toast.LENGTH_SHORT).show()
             println("Error: ${e.localizedMessage}")
         }
     }
 
 
-}
+
+    fun getContactByContactUri(
+        contactUri: Uri,
+        contentResolver: ContentResolver
+    ) {
+        try {
+
+            contentResolver
+                .query(
+                    contactUri,
+                    arrayOf(
+                        ContactsContract.Contacts.HAS_PHONE_NUMBER,
+                        ContactsContract.Contacts._ID,
+                    ),
+                    null,
+                    null,
+                    null
+                )
+                .use { cursor ->
+                    if (cursor?.moveToNext()!!) {
+
+                        when (cursor.count) {
+                            0 -> {}
+
+                            else -> {
+
+                                val columnHasNumber =
+                                    cursor.getColumnIndex(ContactsContract.Contacts.HAS_PHONE_NUMBER)
+
+                                val columnId = cursor.getColumnIndex(ContactsContract.Contacts._ID)
+
+                                if (cursor.moveToFirst()) {
+
+                                    val hasNumber = cursor.getInt(columnHasNumber)
+                                    val contactId = cursor.getString(columnId)
+
+                                    if (hasNumber > 0) {
+
+                                        getContactById(
+                                            contactId = contactId,
+                                            contentResolver = contentResolver
+                                        )
+
+                                    }
+                                }
+                            }
+
+                        }
+                    } else {
+
+                    }
+                }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            println("Error: ${e.localizedMessage}")
+        }
+    }
 
 
-data class ContactModel(
-    val name: String? = "",
-    val number: String? = "",
-    val photoUrl: String? = "",
-) {
-    constructor() : this("", "", "")
+    override fun onCleared() {
+        super.onCleared()
+        _contactsList.value = emptyList()
+    }
+
+
 }
